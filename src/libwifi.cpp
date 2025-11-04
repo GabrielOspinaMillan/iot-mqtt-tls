@@ -81,7 +81,8 @@ void startWiFi(const char* hostname) {
   }
   
   WiFi.begin(ssid, password);
-  
+  Serial.println("Connecting to WiFi SSID: " + String(ssid));
+  Serial.println("password: " + String(password));
   // Wait for connection
   int attempts = 0;
   while (WiFi.status() != WL_CONNECTED && attempts < 20) {
