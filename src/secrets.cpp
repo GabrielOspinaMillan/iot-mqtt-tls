@@ -60,10 +60,10 @@
 
 // Variables de configuración de la red WiFi
 #ifndef WIFI_SSID
-#define WIFI_SSID "JYG COMUNICACIONES CASA"                     ///< Cambia por el nombre de tu red WiFi
+#define WIFI_SSID "gabowifi"                     ///< Cambia por el nombre de tu red WiFi
 #endif
 #ifndef WIFI_PASSWORD
-#define WIFI_PASSWORD "a3g5jhbilasvioletas"                       ///< Cambia por la contraseña de tu red WiFi
+#define WIFI_PASSWORD "gabo2005"                       ///< Cambia por la contraseña de tu red WiFi
 #endif
 
 // Alias para compatibilidad con el código existente
@@ -102,7 +102,7 @@
 "4RgqsahDYVvTH9w7jXbyLeiNdd8XM2w9U/t7y0Ff/9yi0GE44Za4rF2LN9d11TPA\n" \
 "mRGunUHBcnWEvgJBQl9nJEiU0Zsnvgc/ubhPgXRR4Xq37Z0j4r7g1SgEEzwxA57d\n" \
 "emyPxgcYxn/eR44/KJ4EBs+lVDR3veyJm+kXQ99b21/+jh5Xos1AnX5iItreGCc=\n" \
-"-----END CERTIFICATE-----"
+"-----END CERTIFICATE-----"  
 #endif
 
 const char* root_ca = ROOT_CA;
