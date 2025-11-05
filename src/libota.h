@@ -35,10 +35,16 @@
 #define OTA_TOPIC "dispositivo/device1/ota"  // Tópico para recibir actualizaciones OTA
 #define OTA_BUFFER_SIZE 4096                 // Tamaño del buffer para descargar firmware
 
+// Estructura para pasar datos a la tarea OTA
+struct OTAData {
+    char* url;
+    char* version;
+};
+
 // Funciones para OTA
 void setupOTA(PubSubClient & client);                            // Configuración inicial de OTA
 void checkOTAUpdate(const char* payload);   // Verifica si hay actualizaciones disponibles
 void performOTAUpdateTask(void* parameter); // Función que ejecuta la OTA (en otro hilo)
 void subscribeToOTATopic(PubSubClient & client);                 // Suscribe al tópico de OTA
-void startOTATask(const char* url); // Lanza la tarea OTA en otro núcleo
+void startOTATask(const char* url, const char* version); // Lanza la tarea OTA en otro núcleo
 #endif /* LIBOTA_H */

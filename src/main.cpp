@@ -30,6 +30,9 @@
 #include <libstorage.h>
 #include <libprovision.h>
 
+// Versi?n del firmware
+#define FIRMWARE_VERSION "v1.1.1"
+
 SensorData data;  // Estructura para almacenar los datos de temperatura y humedad del SHT21
 time_t hora;      // Timestamp de la hora actual
 
@@ -38,6 +41,19 @@ time_t hora;      // Timestamp de la hora actual
  */
 void setup() {
   Serial.begin(115200);     // Paso 1. Inicializa el puerto serie
+  delay(1000);              // Espera a que el puerto serie se estabilice
+  
+  // Imprimir informaci?n del firmware al inicio
+  // Usar la versi?n guardada en memoria no vol?til (si existe) o la constante por defecto
+  String firmwareVersion = getFirmwareVersion();
+  Serial.println("\n");
+  Serial.println("========================================");
+  Serial.println("  IoT MQTT TLS Device");
+  Serial.print("  Firmware Version: ");
+  Serial.println(firmwareVersion);
+  Serial.println("========================================");
+  Serial.println();
+  
   // Factory reset si el botón BOOT (GPIO0) está presionado al arrancar
   pinMode(0, INPUT_PULLUP);
   if (digitalRead(0) == LOW) {
@@ -69,7 +85,14 @@ void setup() {
   startWiFi("");            // Paso 5. Inicializa el servicio de WiFi
   setupIoT();               // Paso 6. Inicializa el servicio de IoT
   hora = setTime();         // Paso 7. Ajusta el tiempo del dispositivo con servidores SNTP
-  Serial.println("Firmware version v1.1.1"); // Paso 8. Imprime en el puerto serie la versión del firmware
+  
+  // Mostrar versi?n al finalizar inicializaci?n (reutilizar variable ya declarada arriba)
+  Serial.println();
+  Serial.println("========================================");
+  Serial.print("Sistema inicializado - Firmware ");
+  Serial.println(firmwareVersion);
+  Serial.println("========================================");
+  Serial.println();
 }
 
 // Función loop
