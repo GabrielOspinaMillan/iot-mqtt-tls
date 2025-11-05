@@ -91,39 +91,360 @@ Y en el archivo `etc/acl.conf`:
 
 ### Opción 3: ACL usando Dashboard de EMQX (Recomendado)
 
-1. Accede al Dashboard de EMQX (http://localhost:18083)
+Esta es la forma más fácil y visual de configurar el ACL. El Dashboard de EMQX te permite crear reglas ACL de forma interactiva.
 
-2. Ve a **Authentication & Authorization** → **ACL**
+#### Paso 1: Acceder al Dashboard
 
-3. Crea una nueva regla ACL con estos permisos:
+1. Abre tu navegador y ve a: `http://localhost:18083` (o la IP de tu servidor EMQX)
+2. Inicia sesión con tus credenciales de administrador
+3. En el menú lateral, ve a **Access Control** → **ACL**
 
-   **Regla 1: Publicar a topic de salida**
-   - **Action**: Allow
-   - **Principal**: Username = `alvaro` (o el usuario que uses)
-   - **Permission**: Publish
-   - **Topic**: `colombia/valle/tulua/+/alvaro/out` (ajusta según tus valores)
-   - **QoS**: 0, 1, 2
+#### Paso 2: Configurar las reglas ACL
 
-   **Regla 2: Suscribirse a topic de entrada**
-   - **Action**: Allow
-   - **Principal**: Username = `alvaro`
-   - **Permission**: Subscribe
-   - **Topic**: `colombia/valle/tulua/+/alvaro/in`
-   - **QoS**: 0, 1, 2
+En la página de ACL, haz clic en **"Create"** o **"Add Rule"** para crear cada regla. Te explicamos cada campo:
 
-   **Regla 3: Suscribirse a topic OTA (MUY IMPORTANTE)**
-   - **Action**: Allow
-   - **Principal**: Username = `alvaro`
-   - **Permission**: Subscribe
-   - **Topic**: `dispositivo/device1/ota`
-   - **QoS**: 0, 1, 2
+---
 
-   **Regla 4 (Opcional): Wildcard para OTA**
-   - **Action**: Allow
-   - **Principal**: Username = `alvaro`
-   - **Permission**: Subscribe
-   - **Topic**: `dispositivo/+/ota`
-   - **QoS**: 0, 1, 2
+#### **Regla 1: Permitir que "dashboard" lea métricas del sistema**
+
+**¿Para qué sirve?**: Permite que el usuario "dashboard" pueda suscribirse a los topics del sistema (`$SYS/#`) para ver métricas y estadísticas.
+
+**Configuración en el Dashboard:**
+
+1. **Action** (Acción): Selecciona `Allow` (Permitir)
+   - Esto permite la acción especificada
+
+2. **Principal Type** (Tipo de Principal): Selecciona `Username`
+   - Indica que la regla se aplica a un usuario específico
+
+3. **Principal** (Principal): Escribe `dashboard`
+   - Este es el nombre de usuario al que se aplica la regla
+
+4. **Permission** (Permiso): Selecciona `Subscribe`
+   - El usuario puede suscribirse (recibir) mensajes
+
+5. **Topic** (Tópico): Escribe `$SYS/#`
+   - `$SYS/` es el prefijo para topics del sistema
+   - `#` es un wildcard que coincide con todos los subtopics
+   - Ejemplo: `$SYS/brokers`, `$SYS/clients`, etc.
+
+6. **QoS** (Calidad de Servicio): Selecciona `0, 1, 2` (todos)
+   - Permite cualquier nivel de QoS
+
+**¿Qué significa esta regla?**
+```
+Permite que el usuario "dashboard" se suscriba a cualquier topic que empiece con "$SYS/"
+```
+
+---
+
+#### **Regla 2: Permitir acceso completo desde localhost**
+
+**¿Para qué sirve?**: Permite que cualquier conexión desde localhost (127.0.0.1) tenga acceso completo. Útil para debugging y herramientas locales.
+
+**Configuración en el Dashboard:**
+
+1. **Action**: `Allow`
+
+2. **Principal Type**: Selecciona `IP Address`
+   - Indica que la regla se aplica a una dirección IP
+
+3. **Principal**: Escribe `127.0.0.1`
+   - La dirección IP localhost (tu propia máquina)
+
+4. **Permission**: Selecciona `All`
+   - Permite tanto publicar como suscribirse
+
+5. **Topic**: Escribe `$SYS/#,#`
+   - `$SYS/#` para topics del sistema
+   - `#` para todos los topics (separado por coma)
+   - Nota: En algunos dashboards puedes necesitar crear dos reglas separadas
+
+6. **QoS**: `0, 1, 2`
+
+**¿Qué significa esta regla?**
+```
+Cualquier conexión desde localhost puede hacer lo que quiera (publish y subscribe)
+```
+
+---
+
+#### **Regla 3: Todos los usuarios pueden suscribirse a su topic de entrada**
+
+**¿Para qué sirve?**: Permite que cualquier usuario se suscriba a su propio topic de entrada usando el patrón `{COUNTRY}/{STATE}/{CITY}/{client_id}/{username}/in`
+
+**Configuración en el Dashboard:**
+
+1. **Action**: `Allow`
+
+2. **Principal Type**: Selecciona `All`
+   - Se aplica a todos los usuarios
+
+3. **Principal**: Deja vacío o selecciona "All"
+   - No necesitas especificar un usuario específico
+
+4. **Permission**: `Subscribe`
+   - Solo pueden recibir mensajes, no publicar
+
+5. **Topic**: Escribe `+/+/+/+/${username}/in`
+   - `+` es un wildcard que coincide con cualquier valor en ese nivel
+   - `${username}` es una variable que se reemplaza con el nombre de usuario del cliente
+   - Ejemplo: Si el usuario es "alvaro", coincide con `colombia/valle/tulua/ESP32-XXXXXX/alvaro/in`
+
+6. **QoS**: `0, 1, 2`
+
+**¿Qué significa esta regla?**
+```
+Cualquier usuario puede suscribirse a su propio topic de entrada, independientemente
+de su país, estado, ciudad o client_id, siempre que el último nivel antes de "/in" 
+sea su nombre de usuario.
+```
+
+**Ejemplo de topics que coinciden:**
+- `colombia/valle/tulua/ESP32-123456/alvaro/in` ✅ (si el usuario es "alvaro")
+- `mexico/cdmx/ciudad/ESP32-789012/juan/in` ✅ (si el usuario es "juan")
+
+---
+
+#### **Regla 4: Todos pueden publicar a su topic de salida**
+
+**¿Para qué sirve?**: Permite que cualquier usuario publique datos a su topic de salida usando el patrón `{COUNTRY}/{STATE}/{CITY}/{client_id}/{username}/out`
+
+**Configuración en el Dashboard:**
+
+1. **Action**: `Allow`
+
+2. **Principal Type**: `All`
+
+3. **Principal**: Deja vacío
+
+4. **Permission**: `Publish`
+   - Solo pueden publicar (enviar) mensajes
+
+5. **Topic**: Escribe `+/+/+/+/${username}/out`
+   - Similar a la regla anterior, pero termina en `/out`
+
+6. **QoS**: `0, 1, 2`
+
+**¿Qué significa esta regla?**
+```
+Cualquier usuario puede publicar mensajes a su propio topic de salida.
+```
+
+---
+
+#### **Regla 5: Todos pueden suscribirse a su topic de salida**
+
+**¿Para qué sirve?**: Permite que los usuarios también puedan suscribirse a su propio topic de salida (útil para debugging o verificar que los mensajes se publicaron correctamente).
+
+**Configuración en el Dashboard:**
+
+1. **Action**: `Allow`
+
+2. **Principal Type**: `All`
+
+3. **Principal**: Deja vacío
+
+4. **Permission**: `Subscribe`
+
+5. **Topic**: Escribe `+/+/+/+/${username}/out`
+   - Mismo patrón que la regla anterior
+
+6. **QoS**: `0, 1, 2`
+
+---
+
+#### **Regla 6: Usuario específico puede suscribirse a topic OTA (CRÍTICA)**
+
+**¿Para qué sirve?**: Esta es la regla MÁS IMPORTANTE para que funcione la actualización OTA. Permite que el usuario "alvaro" (o el que uses) se suscriba a los topics de actualización OTA.
+
+**Configuración en el Dashboard:**
+
+1. **Action**: `Allow`
+
+2. **Principal Type**: Selecciona `Username`
+   - Esta regla es específica para un usuario
+
+3. **Principal**: Escribe `alvaro`
+   - **IMPORTANTE**: Reemplaza "alvaro" con tu usuario MQTT real (el que está en `MQTT_USER`)
+
+4. **Permission**: `Subscribe`
+   - Solo necesita recibir mensajes OTA
+
+5. **Topic**: Escribe `dispositivo/+/ota`
+   - `dispositivo/` es el prefijo fijo
+   - `+` permite cualquier device (device1, device2, etc.)
+   - `/ota` es el sufijo
+   - Esto coincide con: `dispositivo/device1/ota`, `dispositivo/device2/ota`, etc.
+
+6. **QoS**: `0, 1, 2`
+
+**¿Qué significa esta regla?**
+```
+El usuario "alvaro" puede suscribirse a cualquier topic de actualización OTA
+que siga el patrón dispositivo/{cualquier_device}/ota
+```
+
+**Ejemplo de topics que coinciden:**
+- `dispositivo/device1/ota` ✅
+- `dispositivo/device2/ota` ✅
+- `dispositivo/ESP32-123456/ota` ✅
+
+---
+
+#### **Regla 7: Admin tiene acceso total**
+
+**¿Para qué sirve?**: Permite que el usuario "admin" tenga acceso completo a todos los topics (útil para administración y debugging).
+
+**Configuración en el Dashboard:**
+
+1. **Action**: `Allow`
+
+2. **Principal Type**: `Username`
+
+3. **Principal**: Escribe `admin`
+
+4. **Permission**: `All`
+   - Permite publicar y suscribirse
+
+5. **Topic**: Escribe `#`
+   - `#` es un wildcard que coincide con TODOS los topics
+
+6. **QoS**: `0, 1, 2`
+
+**⚠️ ADVERTENCIA**: Esta regla da acceso total. Úsala solo para usuarios de administración.
+
+---
+
+#### **Regla 8: Admin2 puede escribir en topics de entrada y leer de salida**
+
+**¿Para qué sirve?**: Permite que "admin2" publique mensajes a los topics de entrada de los usuarios (para enviar comandos) y suscribirse a sus topics de salida (para leer datos).
+
+**Configuración en el Dashboard:**
+
+**Regla 8a - Publicar a topics de entrada:**
+
+1. **Action**: `Allow`
+2. **Principal Type**: `Username`
+3. **Principal**: `admin2`
+4. **Permission**: `Publish`
+5. **Topic**: `+/+/+/+/${username}/in`
+6. **QoS**: `0, 1, 2`
+
+**Regla 8b - Suscribirse a topics de salida:**
+
+1. **Action**: `Allow`
+2. **Principal Type**: `Username`
+3. **Principal**: `admin2`
+4. **Permission**: `Subscribe`
+5. **Topic**: `+/+/+/+/${username}/out`
+6. **QoS**: `0, 1, 2`
+
+---
+
+#### **Regla 9: Bloquear suscripciones a $SYS y raíz**
+
+**¿Para qué sirve?**: Previene que usuarios normales se suscriban a topics del sistema o al wildcard raíz por seguridad.
+
+**Configuración en el Dashboard:**
+
+**Regla 9a - Bloquear $SYS:**
+
+1. **Action**: `Deny`
+   - Niegue la acción
+
+2. **Principal Type**: `All`
+
+3. **Principal**: Deja vacío
+
+4. **Permission**: `Subscribe`
+
+5. **Topic**: `$SYS/#`
+
+6. **QoS**: `0, 1, 2`
+
+**Regla 9b - Bloquear wildcard raíz:**
+
+1. **Action**: `Deny`
+2. **Principal Type**: `All`
+3. **Principal**: Deja vacío
+4. **Permission**: `Subscribe`
+5. **Topic**: `#`
+6. **QoS**: `0, 1, 2`
+
+**⚠️ IMPORTANTE**: Las reglas `Deny` deben estar ANTES de las reglas `Allow` generales para que funcionen correctamente. En EMQX, las reglas se evalúan en orden.
+
+---
+
+#### **Regla 10: Negar todo lo demás (regla por defecto)**
+
+**¿Para qué sirve?**: Esta es la regla de seguridad final. Niega todo lo que no haya sido permitido explícitamente por las reglas anteriores.
+
+**Configuración en el Dashboard:**
+
+1. **Action**: `Deny`
+
+2. **Principal Type**: `All`
+
+3. **Principal**: Deja vacío
+
+4. **Permission**: `All`
+   - Niega tanto publicar como suscribirse
+
+5. **Topic**: `#`
+   - Aplica a todos los topics
+
+6. **QoS**: `0, 1, 2`
+
+**⚠️ IMPORTANTE**: Esta regla debe ser la ÚLTIMA en el orden de evaluación. Si está antes de otras reglas, bloqueará todo.
+
+---
+
+### Orden de las reglas ACL
+
+El orden importa. EMQX evalúa las reglas de arriba hacia abajo y se detiene en la primera que coincide. Orden recomendado:
+
+1. Reglas `Deny` específicas (Reglas 9a, 9b)
+2. Reglas `Allow` específicas por usuario (Reglas 1, 6, 7, 8)
+3. Reglas `Allow` generales (Reglas 2, 3, 4, 5)
+4. Regla `Deny` por defecto (Regla 10)
+
+En el Dashboard, puedes reordenar las reglas usando las flechas ↑↓ o arrastrando.
+
+---
+
+### Guía rápida: Valores para copiar/pegar
+
+Si tu usuario MQTT es **"alvaro"** y usas los valores por defecto del código:
+
+| Regla | Principal | Permission | Topic |
+|-------|-----------|------------|-------|
+| Dashboard | `dashboard` | Subscribe | `$SYS/#` |
+| Localhost | `127.0.0.1` (IP) | All | `$SYS/#,#` |
+| Todos - Entrada | `All` | Subscribe | `+/+/+/+/${username}/in` |
+| Todos - Salida PUB | `All` | Publish | `+/+/+/+/${username}/out` |
+| Todos - Salida SUB | `All` | Subscribe | `+/+/+/+/${username}/out` |
+| **OTA (CRÍTICA)** | `alvaro` | Subscribe | `dispositivo/+/ota` |
+| Admin | `admin` | All | `#` |
+| Admin2 PUB | `admin2` | Publish | `+/+/+/+/${username}/in` |
+| Admin2 SUB | `admin2` | Subscribe | `+/+/+/+/${username}/out` |
+| Bloquear $SYS | `All` | Subscribe | `$SYS/#` |
+| Bloquear raíz | `All` | Subscribe | `#` |
+| Denegar todo | `All` | All | `#` |
+
+---
+
+### Notas importantes sobre el Dashboard
+
+1. **Variables disponibles**: En algunos dashboards, `${username}` puede escribirse como `%u` o `%U`. Verifica la documentación de tu versión de EMQX.
+
+2. **Wildcards**:
+   - `+` = un solo nivel (ej: `dispositivo/+/ota`)
+   - `#` = múltiples niveles (ej: `dispositivo/#`)
+
+3. **Guardar cambios**: Después de crear cada regla, haz clic en **"Save"** o **"Apply"**.
+
+4. **Probar reglas**: Puedes probar las reglas usando un cliente MQTT como `mosquitto_pub` o `mosquitto_sub`.
 
 ### Opción 4: ACL usando HTTP API de EMQX
 
