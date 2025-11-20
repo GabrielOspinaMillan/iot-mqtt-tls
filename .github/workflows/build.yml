@@ -52,13 +52,25 @@ jobs:
         path: .pio/build/esp32dev/firmware.bin
     
     - name: Upload to S3 (if secrets available)
-      
+
+      continue-on-error: true
       env:
         S3_BUCKET_NAME: ${{ secrets.S3_BUCKET_NAME }}
         AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
         AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         AWS_REGION: ${{ secrets.AWS_REGION }}
       run: |
+        # Check if required secrets are available
+        if [ -z "$S3_BUCKET_NAME" ] || [ -z "$AWS_ACCESS_KEY_ID" ] || [ -z "$AWS_SECRET_ACCESS_KEY" ]; then
+          echo "⚠️  S3 secrets not configured. Skipping S3 upload."
+          echo "To enable S3 upload, configure the following secrets:"
+          echo "  - S3_BUCKET_NAME"
+          echo "  - AWS_ACCESS_KEY_ID" 
+          echo "  - AWS_SECRET_ACCESS_KEY"
+          echo "  - AWS_REGION (optional, defaults to us-east-1)"
+          exit 0
+        fi
+        
         # Set default AWS region if not provided
         export AWS_DEFAULT_REGION=${AWS_REGION:-us-east-1}
         
@@ -73,4 +85,4 @@ jobs:
         # Upload to S3 using environment variables instead of direct secret expansion
         aws s3 cp .pio/build/esp32dev/firmware.bin "s3://${S3_BUCKET_NAME}/${FIRMWARE_NAME}"
         
-        echo "Firmware uploaded to S3: s3://${S3_BUCKET_NAME}/${FIRMWARE_NAME}"
+        echo "✅ Firmware uploaded to S3: s3://${S3_BUCKET_NAME}/${FIRMWARE_NAME}"

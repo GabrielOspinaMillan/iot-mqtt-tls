@@ -1,121 +1,65 @@
-# Configuración de Secrets para IoT MQTT TLS
+## Configuración de Secrets y .env (Build local y OTA)
 
-Este proyecto ahora utiliza variables de entorno para manejar todos los secretos de forma segura. Los secretos ya no están hardcodeados en el código fuente.
+Este proyecto usa un archivo `.env` local y GitHub Secrets para manejar credenciales de forma segura. El código no contiene secretos reales.
 
-## Variables de Entorno Requeridas
+### Variables soportadas
+- `COUNTRY`, `STATE`, `CITY`: etiquetas para formar tópicos MQTT.
+- `MQTT_SERVER`, `MQTT_PORT`, `MQTT_USER` (opcional), `MQTT_PASSWORD` (opcional)
+- `WIFI_SSID`, `WIFI_PASSWORD` (solo como valores iniciales; en producción se usa aprovisionamiento por AP y NVS)
+- `ROOT_CA`: certificado raíz PEM en una sola línea con `\n` entre líneas.
 
-### Configuración de Ubicación
-- `COUNTRY`: País donde se encuentra el dispositivo (ej: "colombia")
-- `STATE`: Estado donde se encuentra el dispositivo (ej: "valle") 
-- `CITY`: Ciudad donde se encuentra el dispositivo (ej: "tulua")
+### Crear y llenar `.env`
+1) En la raíz del proyecto, crea `.env` y agrega:
 
-### Configuración del Servidor MQTT
-- `MQTT_SERVER`: Dirección del servidor MQTT (ej: "mqtt.alvarosalazar.freeddns.org")
-- `MQTT_PORT`: Puerto del servidor MQTT (ej: 8883)
-- `MQTT_USER`: Usuario MQTT (ej: "alvaro")
-- `MQTT_PASSWORD`: Contraseña del usuario MQTT (ej: "supersecreto")
-
-### Configuración de WiFi
-- `WIFI_SSID`: Nombre de la red WiFi (ej: "univalle")
-- `WIFI_PASSWORD`: Contraseña de la red WiFi (ej: "Univalle")
-
-### Certificado de Seguridad
-- `ROOT_CA`: Certificado raíz en formato PEM para conexiones TLS
-
-## Configuración Local
-
-### 1. Crear archivo .env
-Copia el archivo `.env.template` como `.env` y configura tus valores:
-
-```bash
-cp .env.template .env
+```ini
+COUNTRY=colombia
+STATE=valle
+CITY=tulua
+MQTT_SERVER=mqtt.tu-dominio.com
+MQTT_PORT=8883
+MQTT_USER=miuser
+MQTT_PASSWORD=supersecreto
+WIFI_SSID=MiWiFiInicial
+WIFI_PASSWORD=MiPassInicial
+ROOT_CA=-----BEGIN CERTIFICATE-----\nMIIF...\n-----END CERTIFICATE-----
 ```
 
-Luego edita `.env` con tus valores reales.
+Notas:
+- `ROOT_CA` debe quedar en una sola línea con `\n` donde corresponda salto de línea. Si no lo agregas se toma por defecto el certificado root de LetsEncrypt.
+- `WIFI_SSID`/`WIFI_PASSWORD` son opcionales: el dispositivo guarda credenciales en NVS mediante el portal AP.
 
-### 2. Compilar con PlatformIO
-
-#### Opción A: Compilar con valores por defecto (recomendado para desarrollo)
-```bash
-platformio run -e esp32dev
-```
-
-#### Opción B: Compilar con variables de entorno específicas
-```bash
-platformio run -e esp32dev \
-  -DCOUNTRY=colombia \
-  -DSTATE=valle \
-  -DCITY=tulua \
-  -DMQTT_SERVER=mqtt.usuario.freeddns.org \
-  -DMQTT_PORT=8883 \
-  -DMQTT_USER=alvaro \
-  -DMQTT_PASSWORD=supersecreto \
-  -DWIFI_SSID=wifi \
-  -DWIFI_PASSWORD=password \
-  -DROOT_CA="-----BEGIN CERTIFICATE-----..."
-```
-
-#### Opción C: Usar el script de Python (recomendado para CI/CD)
+### Cómo compilar y subir localmente
+- Compilar:
 ```bash
 python scripts/build_with_env.py
 ```
-
-## Configuración en GitHub Secrets
-
-Para usar GitHub Actions, configura los siguientes secrets en tu repositorio:
-
-1. Ve a tu repositorio en GitHub
-2. Click en "Settings" → "Secrets and variables" → "Actions"
-3. Click en "New repository secret"
-4. Agrega cada una de las variables de entorno como secrets:
-
-### Secrets requeridos en GitHub:
-- `COUNTRY`
-- `STATE` 
-- `CITY`
-- `MQTT_SERVER` (servidor MQTT)
-- `MQTT_PORT`
-- `MQTT_USER`
-- `MQTT_PASSWORD`
-- `WIFI_SSID`
-- `WIFI_PASSWORD`
-- `ROOT_CA`
-
-## Configuración de Variables de Entorno en Terminal
-
-También puedes configurar las variables de entorno directamente en tu terminal:
-
+- Subir al dispositivo:
 ```bash
-export COUNTRY="colombia"
-export STATE="valle"
-export CITY="tulua"
-export MQTT_SERVER="mqtt.alvarosalazar.freeddns.org"
-export MQTT_PORT="8883"
-export MQTT_USER="alvaro"
-export MQTT_PASSWORD="supersecreto"
-export WIFI_SSID="univalle"
-export WIFI_PASSWORD="Univalle"
-export ROOT_CA="-----BEGIN CERTIFICATE-----\n..."
+python scripts/build_with_env.py upload
 ```
 
-## Compilación con Variables Específicas
+El archivo `platformio.ini` ejecuta `scripts/add_env_defines.py` como `extra_scripts`, que lee `.env` y exporta las claves como macros de compilación (sin tener que pasar `-D` manualmente).
 
-Puedes sobrescribir variables específicas durante la compilación:
+### Configurar GitHub Secrets (para CI/CD y OTA)
+Ve a GitHub → repo → Settings → Secrets and variables → Actions → New repository secret y añade:
 
-```bash
-platformio run -e esp32dev --environment-variables "COUNTRY=mexico,STATE=cdmx,CITY=mexico"
-```
+Secrets para build (si tu workflow los usa):
+- `COUNTRY`, `STATE`, `CITY`
+- `MQTT_SERVER`, `MQTT_PORT`, `MQTT_USER` (opcional), `MQTT_PASSWORD` (opcional)
+- `ROOT_CA` (opcional si usas CA pública embebida)
 
-## Seguridad
+Secrets para OTA (usados por `.github/workflows/ota-update.yml`):
+- `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`, `S3_BUCKET_NAME`
+- `MQTT_SERVER`, `MQTT_PORT`, `MQTT_USER` (opcional), `MQTT_PASSWORD` (opcional), `MQTT_TLS` (`true`/`false`)
 
-- **NUNCA** commitees el archivo `.env` al repositorio
-- El archivo `.env` está incluido en `.gitignore`
-- Usa GitHub Secrets para CI/CD
-- Mantén tus secrets seguros y no los compartas
+El workflow compila, sube `firmware_*.bin` a S3 y publica un mensaje MQTT al tópico `OTA_TOPIC` definido en `src/libota.h` (por defecto `dispositivo/device1/ota`).
 
-## Archivos Modificados
+### Buenas prácticas de seguridad
+- No commitees `.env` (está en `.gitignore`).
+- Usa credenciales por entorno (dev/stg/prod) con repos/branches separados o distintos secrets.
+- Habilita Flash Encryption y Secure Boot en producción en los dispositivos.
 
-- `src/secrets.cpp`: Ahora lee variables de entorno con valores por defecto
-- `platformio.ini`: Configurado para usar variables de entorno
-- `.env.template`: Template con todas las variables necesarias
-- `.github/workflows/build.yml`: Workflow que usa GitHub Secrets
+### Referencias
+- `src/secrets.cpp`: defaults vacíos; los valores vienen de `.env` o de provisioning.
+- `scripts/add_env_defines.py`: extra script que inyecta `CPPDEFINES` desde `.env`/entorno.
+- `.github/workflows/ota-update.yml`: workflow de compilación y OTA por MQTT.

@@ -30,4 +30,8 @@ extern const char* password;        //< Cambia por la contraseña de tu red WiFi
 void listWiFiNetworks();            //< Función para listar las redes WiFi disponibles
 void startWiFi(const char* hostname);    //< Función para iniciar el servicio de WiFi
 void checkWiFi();                   //< Función para verificar la conexión a la red WiFi
+bool hasStoredWiFi();               //< Retorna true si hay credenciales WiFi en NVS
+bool saveWiFi(const String &ssid, const String &pwd); //< Guarda credenciales WiFi en NVS
+bool clearStoredWiFi();             //< Limpia credenciales WiFi en NVS
+void factoryReset();                //< Borra credenciales y reinicia el dispositivo
 #endif /* LIBWIFI_H */

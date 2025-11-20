@@ -1,96 +1,58 @@
-# IoT MQTT TLS
+# IoT MQTT TLS (ESP32)
 
-Este proyecto es un ejemplo de cómo implementar un cliente IoT usando **MQTT** con soporte de **TLS** para una conexión segura. Está desarrollado en **C/C++** para dispositivos basados en **ESP32** y utiliza el protocolo **MQTT** para enviar y recibir datos entre el dispositivo y un broker MQTT. Además, este proyecto incluye autenticación mediante usuario/contraseña y utiliza un certificado de **Let's Encrypt** para garantizar una conexión segura (puede usarse cualquier otro certificado).
+Proyecto base para ESP32 con MQTT seguro (TLS), provisión Wi‑Fi por portal AP, y OTA vía GitHub Actions.
 
-## Características
-
-- **MQTT sobre TLS**: Comunicación segura mediante el protocolo MQTT con soporte de TLS.
-- **Autenticación**: Uso de usuario y contraseña para conectarse al broker MQTT.
-- **Certificados**: Uso del certificado raíz de Let's Encrypt (ISRG Root X1) para la autenticación del servidor.
-- **Conexión automática**: Manejo de desconexiones y reconexión automática.
-- **Publicación/Suscripción**: Soporte para publicar y suscribirse a tópicos definidos.
-
-## Requisitos
-
-- **ESP32** con soporte de **Wi-Fi**.
-- **Broker MQTT** que soporte conexiones TLS (por ejemplo, Mosquitto).
-- **Certificado raíz de Let's Encrypt** para la autenticación TLS.
-
-### Dependencias
-
-- **PubSubClient**: Librería MQTT para ESP32.
-- **WiFiClientSecure**: Cliente para conexiones seguras sobre Wi-Fi.
-- **Arduino Framework**: Para desarrollo de IoT con ESP32.
-
-## Instalación
-
-### 1. Configuración del broker MQTT
-
-Debes tener un broker MQTT configurado con soporte para TLS. Si estás utilizando **Mosquitto**, asegúrese de que esté configurado con un certificado válido (por ejemplo, el certificado de **Let's Encrypt**).
-
-### 2. Clonar el repositorio
-
+### Quick Start
+1) Instala requisitos: PlatformIO (VS Code o CLI) y Python 3.
+2) Haz un fork del repositorio en GitHub (tu cuenta) y clona TU fork:
 ```bash
-git clone https://github.com/alvaro-salazar/iot-mqtt-tls.git
+git clone https://github.com/<tu-usuario>/iot-mqtt-tls.git
 cd iot-mqtt-tls
 ```
-
-### 3. Configurar el ESP32
-
-Modifica los valores de conexión en el archivo principal para el ESP32:
-
-```cpp
-#define SSID "NOMBRE_DE_TU_RED"
-#define PASSWORD "CONTRASEÑA_DE_TU_RED"
-#define MQTT_SERVER "mqtt.tu-servidor.com"
-#define MQTT_PORT 8883
-#define MQTT_USER "device1"
-#define MQTT_PASSWORD "a1b2c3d4"
+3) En tu fork: habilita GitHub Actions (tab Actions → “I understand my workflows…” → Enable) y configura los Secrets si usarás OTA (ver [SECRETS_SETUP.md](SECRETS_SETUP.md)).
+4) Crea `.env` (valores de ejemplo):
+```ini
+COUNTRY=colombia
+STATE=valle
+CITY=tulua
+MQTT_SERVER=mqtt.tu-dominio.com
+MQTT_PORT=8883
+MQTT_USER=miuser
+MQTT_PASSWORD=supersecreto
+WIFI_SSID=MiWiFiInicial
+WIFI_PASSWORD=MiPassInicial
+ROOT_CA=-----BEGIN CERTIFICATE-----\nMIIF...\n-----END CERTIFICATE-----
 ```
-
-Asegúrese de añadir el certificado raíz de Let's Encrypt (ISRG Root X1) en tu código:
-
-```cpp
-const char* root_ca = \
-"-----BEGIN CERTIFICATE-----\n" \
-"... tu certificado aquí ...\n" \
-"-----END CERTIFICATE-----\n";
+5) Compila y sube al ESP32:
+```bash
+python scripts/build_with_env.py
+python scripts/build_with_env.py upload
 ```
+6) Configura el Wi‑Fi (si es la primera vez):
+   - Conéctate al AP `ESP32-Setup-XXXXXX`
+   - Abre `http://192.168.4.1`, ingresa SSID y contraseña, Guardar
 
-### 4. Compilación y carga
+Listo: el equipo se conecta y guarda credenciales (persisten tras OTA).
 
-Compila y sube el código a tu ESP32 usando tu entorno de desarrollo preferido (Arduino IDE o PlatformIO).
-
-### 5. Ejecución
-
-Una vez que el código esté en el ESP32, este se conectará a la red Wi-Fi y al broker MQTT utilizando TLS. Se publicarán y recibirán mensajes en los tópicos configurados.
-
-## Tópicos MQTT
-
-El formato de los tópicos utilizados es:
-
-```plaintext
-<pais>/<estado>/<ciudad>/<device-id>/<usuario>/out  // Para publicaciones
-<pais>/<estado>/<ciudad>/<device-id>/<usuario>/in   // Para suscripciones
+### OTA por tags en TU fork (opcional)
+- Haz commit y push de tus cambios a `main` de tu fork y crea un tag:
+```bash
+git add . && git commit -m "feat: cambio" && git push origin main
+git tag v1.2.0 && git push origin v1.2.0
 ```
+- El workflow compila, sube el binario a S3 y publica el mensaje OTA al tópico definido en `src/libota.h`.
 
-### Ejemplo:
+### Troubleshooting rápido
+- Portal no abre: usa `http://192.168.4.1` y desactiva datos móviles.
+- No aparece el AP: reinicia o mantén BOOT 3+ s al encender.
+- Error ROOT_CA: ponlo en una sola línea con `\n`.
+- OTA no llega: revisa Secrets de GitHub y suscripción al tópico OTA.
 
-```plaintext
-colombia/valle/tulua/ESP32-CC50E3B65DD/device1/out
-```
-
-## Personalización
-
-Puedes modificar el archivo para cambiar los tópicos, las credenciales del broker y el comportamiento del dispositivo.
-
-## Manejo de Errores
-
-Si el ESP32 pierde la conexión con el broker, el sistema intentará reconectar automáticamente. Puedes revisar los logs en la consola serie para diagnosticar cualquier problema con la conexión.
-
-## Contribuciones
-
-¡Las contribuciones son bienvenidas! Si deseas colaborar, por favor abre un **issue** o envía un **pull request** con tus sugerencias.
+### Más detalles
+- Guía rápida extendida: [GUIA_RAPIDA.md](GUIA_RAPIDA.md)
+- Configurar `.env` y Secrets: [SECRETS_SETUP.md](SECRETS_SETUP.md)
+- Instrucciones de AP Wi‑Fi: [WIFI_SETUP.md](WIFI_SETUP.md)
+- Lanzar OTA con tags: [OTA_SETUP.md](OTA_SETUP.md)
 
 ## Licencia
 
