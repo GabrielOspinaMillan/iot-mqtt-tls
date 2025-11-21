@@ -32,6 +32,8 @@
 #include <WiFiClientSecure.h>
 #include <PubSubClient.h>
 #include <SHTSensor.h>
+#include <MAX30100_PulseOximeter.h>
+#include <MPU6050.h>
 
 #define MEASURE_INTERVAL 2          ///< Intervalo en segundos de las mediciones
 #define ALERT_DURATION 60           ///< Duración aproximada en la pantalla de las alertas que se reciban
@@ -51,10 +53,20 @@ extern long long int measureTime;   ///< Tiempo de la última medición
 extern long long int alertTime;     ///< Tiempo en que inició la última alerta
 extern String alert;                ///< Mensaje para mostrar en la pantalla
 extern SHTSensor sht;               ///< Sensor SHT21
+extern PulseOximeter pox;          ///< Sensor MAX30100
+extern MPU6050 mpu;                ///< Sensor MPU6050
 
 typedef struct {
   float temperature;
   float humidity;
+  float heartRate;     // BPM del MAX30100
+  float spO2;          // % de oxígeno del MAX30100
+  float accelX;        // Aceleración en X (MPU6050)
+  float accelY;        // Aceleración en Y
+  float accelZ;        // Aceleración en Z
+  float gyroX;         // Giroscopio en X
+  float gyroY;         // Giroscopio en Y
+  float gyroZ;         // Giroscopio en Z
 } SensorData;
 
 time_t setTime();                   ///< Función setTime que ajusta el tiempo del dispositivo con servidores SNTP
@@ -62,10 +74,13 @@ bool measure(SensorData * data);    ///< Función measure que verifica si ya es 
 void reconnect();                   ///< Función que se ejecuta cuando se establece conexión con el servidor MQTT
 void setupIoT();                    ///< Función setupIoT que configura el certificado raíz, el servidor MQTT y el puerto
 void setupSHT();                    ///< Función setupSHT que configura el sensor SHT21
+void setupMAX30100();              ///< Función setup para MAX30100
+void setupMPU6050();               ///< Función setup para MPU6050
 void checkMQTT();                   ///< Función checkMQTT que verifica si el dispositivo está conectado al broker MQTT y si no lo está, intenta reconectar
 String checkAlert();                ///< Función checkAlert que verifica si ha llegado alguna alerta al dispositivo
 void receivedCallback(char* topic, byte* payload, unsigned int length); ///< Función receivedCallback que se ejecuta cuando llega un mensaje a la suscripción MQTT
-void sendSensorData(float temperatura, float humedad); ///< Función sendSensorData que publica la temperatura y humedad dadas al tópico configurado usando el cliente MQTT
+void sendSensorData(SensorData* data); ///< Función sendSensorData que publica todos los datos de sensores al tópico configurado usando el cliente MQTT
 String getMacAddress();             ///< Función getMacAddress que adquiere la dirección MAC del dispositivo y la retorna en formato de cadena  
+void onBeatDetected();             ///< Callback para latidos
 
 #endif /* LIBIOT_H */

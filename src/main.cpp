@@ -93,6 +93,9 @@ void setup() {
   Serial.println(firmwareVersion);
   Serial.println("========================================");
   Serial.println();
+  setupSHT();               // Ya existe
+  setupMAX30100();          // NUEVA
+  setupMPU6050();           // NUEVA
 }
 
 // Función loop
@@ -106,6 +109,6 @@ void loop() {
   String message = checkAlert();                                 // Paso 3. Verifica si hay alertas y las retorna en caso de haberlas
   if(measure(&data)){                                            // Paso 4. Realiza una medición de temperatura y humedad
     displayLoop(message, hora, data.temperature, data.humidity); // Paso 5. Muestra en la pantalla el mensaje recibido, las medidas de temperatura y humedad
-    sendSensorData(data.temperature, data.humidity);             // Paso 6. Envía los datos de temperatura y humedad al servidor MQTT
+    sendSensorData(&data);  // Ahora pasa la estructura completa
   }   
 }

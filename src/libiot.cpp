@@ -26,6 +26,7 @@
 #include <SHTSensor.h>
 #include <libota.h>
 #include <libstorage.h>
+#include <ArduinoJson.h> // Incluir la librería ArduinoJson
 
 // Versión del firmware (debe coincidir con main.cpp)
 #ifndef FIRMWARE_VERSION
@@ -47,6 +48,8 @@ SHTSensor sht;     //Sensor SHT21
 String alert = ""; //Mensaje de alerta
 extern const char * client_id;  //ID del cliente MQTT
 
+PulseOximeter pox;  // Sensor MAX30100
+MPU6050 mpu;        // Sensor MPU6050
 
 /**
  * Consulta y guarda el tiempo actual con servidores SNTP.
@@ -201,7 +204,7 @@ void setupIoT() {
   Serial.println("Callback MQTT configurado: receivedCallback");
   Serial.println("==========================");
   setTime();                    //Ajusta el tiempo del dispositivo con servidores SNTP
-  setupSHT();                   //Configura el sensor SHT21
+  setupSHT();             //Configura el sensor SHT21
 }
 
 
@@ -216,27 +219,106 @@ void setupSHT() {
 
 
 /**
+ * Configura el sensor MAX30100
+ */
+void setupMAX30100() {
+  Serial.print("Inicializando MAX30100...");
+  if (!pox.begin()) {
+    Serial.println(" FALLO");
+    for(;;); // Detiene el programa si falla
+  } else {
+    Serial.println(" OK");
+  }
+  // Configurar el sensor
+  pox.setIRLedCurrent(MAX30100_LED_CURR_7_6MA);
+  // Registrar callback para cada latido detectado
+  pox.setOnBeatDetectedCallback(onBeatDetected);
+}
+
+/**
+ * Configura el sensor MPU6050
+ */
+void setupMPU6050() {
+  Serial.print("Inicializando MPU6050...");
+  Wire.begin();
+  mpu.initialize();
+  
+  if (!mpu.testConnection()) {
+    Serial.println(" FALLO");
+    for(;;); // Detiene el programa si falla
+  } else {
+    Serial.println(" OK");
+  }
+  
+  // Configurar rangos
+  mpu.setFullScaleAccelRange(MPU6050_ACCEL_FS_2); // ±2g
+  mpu.setFullScaleGyroRange(MPU6050_GYRO_FS_250);  // ±250°/s
+}
+
+/**
+ * Callback que se ejecuta cuando MAX30100 detecta un latido
+ */
+void onBeatDetected() {
+  Serial.println("💓 Latido detectado!");
+}
+
+/**
  * Verifica si ya es momento de hacer las mediciones de las variables.
  * si ya es tiempo, mide y envía las mediciones.
  */
 bool measure(SensorData * data) {
-  if ((millis() - measureTime) >= MEASURE_INTERVAL * 1000 ) {
-    PRINTLN("\nMidiendo variables...");
-    measureTime = millis();    
+  if (millis() - measureTime > MEASURE_INTERVAL * 1000) {
+    measureTime = millis();
+    
+    // Leer SHT21 (temperatura y humedad)
     if (sht.readSample()) {
-        data->temperature = sht.getTemperature();
-        data->humidity = sht.getHumidity();
-        PRINT(" %RH ❖ Temperatura: ");
-        PRINTD(data->humidity, 2);
-        PRINT(" %RH ❖ Temperatura: ");
-        PRINTD(data->temperature, 2);
-        PRINTLN(" °C");
-        return true;
+      data->temperature = sht.getTemperature();
+      data->humidity = sht.getHumidity();
+      PRINT("Temperatura: ");
+      PRINTD(data->temperature, 2);
+      PRINT(" Humedad: ");
+      PRINTD(data->humidity, 2);
+      PRINTLN("");
     } else {
-        Serial.print("Error leyendo la muestra\n");
-        return false;
+      PRINTLN("Error leyendo SHT21");
     }
+    
+    // Leer MAX30100 (frecuencia cardíaca y SpO2)
+    pox.update();
+    data->heartRate = pox.getHeartRate();
+    data->spO2 = pox.getSpO2();
+    PRINT("BPM: ");
+    PRINTD(data->heartRate, 1);
+    PRINT(" SpO2: ");
+    PRINTD(data->spO2, 1);
+    PRINTLN("%");
+    
+    // Leer MPU6050 (acelerómetro y giroscopio)
+    int16_t ax, ay, az;
+    int16_t gx, gy, gz;
+    mpu.getMotion6(&ax, &ay, &az, &gx, &gy, &gz);
+    
+    // Convertir a unidades reales
+    data->accelX = ax / 16384.0; // Para rango ±2g
+    data->accelY = ay / 16384.0;
+    data->accelZ = az / 16384.0;
+    data->gyroX = gx / 131.0;    // Para rango ±250°/s
+    data->gyroY = gy / 131.0;
+    data->gyroZ = gz / 131.0;
+    
+    PRINT("Accel X:");
+    PRINTD(data->accelX, 2);
+    PRINT(" Y:");
+    PRINTD(data->accelY, 2);
+    PRINT(" Z:");
+    PRINTD(data->accelZ, 2);
+    PRINTLN("");
+    
+    return true;
   }
+  
+  // Actualizar MAX30100 continuamente (necesario para detección de latidos)
+  pox.update();
   return false;
 }
 
@@ -258,15 +340,34 @@ String checkAlert() {
 /**
  * Publica la temperatura y humedad dadas al tópico configurado usando el cliente MQTT.
  */
-void sendSensorData(float temperatura, float humedad) {
-  String data = "{";
-  data += "\"temperatura\": "+ String(temperatura, 1) +", ";
-  data += "\"humedad\": "+ String(humedad, 1);
-  data += "}";
-  char payload[data.length()+1];
-  data.toCharArray(payload,data.length()+1);
-  PRINTLN("client id: " + String(client_id) + "\ntopic: " + String(MQTT_TOPIC_PUB) + "\npayload: " + data);
-  client.publish(MQTT_TOPIC_PUB, payload);
+void sendSensorData(SensorData* data) {
+  // Crear JSON con todos los datos
+  StaticJsonDocument<512> doc;
+  
+  doc["temperature"] = data->temperature;
+  doc["humidity"] = data->humidity;
+  doc["heartRate"] = data->heartRate;
+  doc["spO2"] = data->spO2;
+  doc["accelX"] = data->accelX;
+  doc["accelY"] = data->accelY;
+  doc["accelZ"] = data->accelZ;
+  doc["gyroX"] = data->gyroX;
+  doc["gyroY"] = data->gyroY;
+  doc["gyroZ"] = data->gyroZ;
+  doc["timestamp"] = now;
+  doc["device_id"] = getMacAddress();
+  
+  char buffer[512];
+  serializeJson(doc, buffer);
+  
+  PRINT("Publicando: ");
+  PRINTLN(buffer);
+  
+  if (client.publish(MQTT_TOPIC_PUB, buffer)) {
+    Serial.println("✓ Datos publicados correctamente");
+  } else {
+    Serial.println("✗ Error al publicar datos");
+  }
 }
 
 
